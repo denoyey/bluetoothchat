@@ -1,8 +1,12 @@
 package com.example.bluetoothchat.service
 
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.bluetooth.BluetoothAdapter
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
@@ -18,6 +22,22 @@ class BluetoothChatService : Service() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var wakeLock: PowerManager.WakeLock? = null
+
+    private val bluetoothStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == BluetoothAdapter.ACTION_STATE_CHANGED) {
+                val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+                if (state == BluetoothAdapter.STATE_OFF || state == BluetoothAdapter.STATE_TURNING_OFF) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                    } else {
+                        stopForeground(true)
+                    }
+                    stopSelf()
+                }
+            }
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -53,6 +73,9 @@ class BluetoothChatService : Service() {
                 notificationHelper.updateServiceNotification(connections.size)
             }
         }
+
+        // Listen for Bluetooth OFF to kill service
+        registerReceiver(bluetoothStateReceiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -63,6 +86,7 @@ class BluetoothChatService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        try { unregisterReceiver(bluetoothStateReceiver) } catch (_: Exception) {}
         wakeLock?.let {
             if (it.isHeld) it.release()
         }

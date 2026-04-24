@@ -3,11 +3,10 @@ package com.example.bluetoothchat.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -23,7 +22,6 @@ import com.example.bluetoothchat.data.model.ConnectionInfo
 import com.example.bluetoothchat.ui.components.AnimatedScanIndicator
 import com.example.bluetoothchat.ui.components.DeviceCard
 import com.example.bluetoothchat.ui.viewmodel.BluetoothUiState
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -34,16 +32,10 @@ fun HomeScreen(
     state: BluetoothUiState,
     isDarkTheme: Boolean,
     onToggleTheme: () -> Unit,
-    onStartScan: () -> Unit,
-    onStopScan: () -> Unit,
-    onDeviceClick: (BluetoothDeviceInfo) -> Unit,
-    onWaitForConnection: () -> Unit,
     onHistoryClick: (ChatHistoryItem) -> Unit,
-    onDeleteHistory: (String) -> Unit
+    onDeleteHistory: (String) -> Unit,
+    onFabClick: () -> Unit
 ) {
-    val pagerState = rememberPagerState(pageCount = { 2 })
-    val scope = rememberCoroutineScope()
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -54,13 +46,6 @@ fun HomeScreen(
                     )
                 },
                 actions = {
-                    // Active connections badge
-                    if (state.activeConnections.isNotEmpty()) {
-                        Badge(containerColor = MaterialTheme.colorScheme.primary) {
-                            Text("${state.activeConnections.size}")
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                    }
                     IconButton(onClick = onToggleTheme) {
                         Icon(
                             if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
@@ -73,47 +58,51 @@ fun HomeScreen(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onFabClick,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Icon(Icons.Default.Chat, "New Chat")
+            }
         }
     ) { innerPadding ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(innerPadding)
-        ) {
-            PrimaryTabRow(
-                selectedTabIndex = pagerState.currentPage,
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.primary,
-                divider = { HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)) }
-            ) {
-                Tab(
-                    selected = pagerState.currentPage == 0,
-                    onClick = { scope.launch { pagerState.animateScrollToPage(0) } },
-                    text = { Text("Devices") },
-                    icon = { Icon(Icons.Default.Bluetooth, null, Modifier.size(18.dp)) }
-                )
-                Tab(
-                    selected = pagerState.currentPage == 1,
-                    onClick = { scope.launch { pagerState.animateScrollToPage(1) } },
-                    text = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("History")
-                            if (state.chatHistory.isNotEmpty()) {
-                                Spacer(Modifier.width(6.dp))
-                                Badge(containerColor = MaterialTheme.colorScheme.primary) {
-                                    Text("${state.chatHistory.size}")
-                                }
-                            }
-                        }
-                    },
-                    icon = { Icon(Icons.Default.History, null, Modifier.size(18.dp)) }
-                )
-            }
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            HistoryTab(state.chatHistory, state.activeConnections, onHistoryClick, onDeleteHistory)
+        }
+    }
+}
 
-            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-                when (page) {
-                    0 -> DevicesTab(state, onStartScan, onStopScan, onDeviceClick, onWaitForConnection)
-                    1 -> HistoryTab(state.chatHistory, state.activeConnections, onHistoryClick, onDeleteHistory)
-                }
-            }
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DeviceListScreen(
+    state: BluetoothUiState,
+    onStartScan: () -> Unit,
+    onStopScan: () -> Unit,
+    onDeviceClick: (BluetoothDeviceInfo) -> Unit,
+    onWaitForConnection: () -> Unit,
+    onBack: () -> Unit
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Select Device", style = MaterialTheme.typography.titleMedium) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            )
+        }
+    ) { innerPadding ->
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            DevicesTab(state, onStartScan, onStopScan, onDeviceClick, onWaitForConnection)
         }
     }
 }
@@ -247,7 +236,6 @@ private fun HistoryCard(
         elevation = CardDefaults.cardElevation(0.dp)
     ) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            // Avatar with online dot
             Box {
                 Surface(
                     Modifier.size(42.dp), shape = CircleShape,

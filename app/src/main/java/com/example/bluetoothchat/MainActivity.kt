@@ -2,7 +2,10 @@ package com.example.bluetoothchat
 
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -54,10 +57,27 @@ class MainActivity : ComponentActivity() {
         if (canConnect) startBluetoothService()
     }
 
+    private val bluetoothStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == BluetoothAdapter.ACTION_STATE_CHANGED) {
+                val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+                if (state == BluetoothAdapter.STATE_ON) {
+                    // Check if we have permissions before starting
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || 
+                        checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        startBluetoothService()
+                    }
+                }
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         requestPermissions()
+        
+        registerReceiver(bluetoothStateReceiver, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
 
         setContent {
             var isDarkTheme by remember { mutableStateOf(false) }
@@ -121,13 +141,32 @@ class MainActivity : ComponentActivity() {
                             composable(
                                 Screen.Home.route,
                                 enterTransition = { fadeIn(tween(250)) },
-                                exitTransition = { slideOutHorizontally(tween(250)) { -it / 4 } + fadeOut(tween(250)) },
-                                popEnterTransition = { slideInHorizontally(tween(250)) { -it / 4 } + fadeIn(tween(250)) }
+                                exitTransition = { fadeOut(tween(250)) }
                             ) {
                                 HomeScreen(
                                     state = state,
                                     isDarkTheme = isDarkTheme,
                                     onToggleTheme = { isDarkTheme = !isDarkTheme },
+                                    onHistoryClick = { item ->
+                                        viewModel.connectFromHistory(item)
+                                        navController.navigate(Screen.Chat.route) {
+                                            popUpTo(Screen.Home.route)
+                                        }
+                                    },
+                                    onDeleteHistory = { viewModel.deleteHistory(it) },
+                                    onFabClick = {
+                                        navController.navigate(Screen.DeviceList.route)
+                                    }
+                                )
+                            }
+
+                            composable(
+                                Screen.DeviceList.route,
+                                enterTransition = { slideInHorizontally(tween(250)) { it } + fadeIn(tween(250)) },
+                                popExitTransition = { slideOutHorizontally(tween(250)) { it } + fadeOut(tween(250)) }
+                            ) {
+                                com.example.bluetoothchat.ui.screens.DeviceListScreen(
+                                    state = state,
                                     onStartScan = {
                                         try {
                                             startActivity(Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE).apply {
@@ -141,13 +180,7 @@ class MainActivity : ComponentActivity() {
                                         viewModel.connectToDevice(device)
                                     },
                                     onWaitForConnection = { /* Server already running */ },
-                                    onHistoryClick = { item ->
-                                        viewModel.connectFromHistory(item)
-                                        navController.navigate(Screen.Chat.route) {
-                                            popUpTo(Screen.Home.route)
-                                        }
-                                    },
-                                    onDeleteHistory = { viewModel.deleteHistory(it) }
+                                    onBack = { navController.popBackStack() }
                                 )
                             }
 
@@ -198,5 +231,10 @@ class MainActivity : ComponentActivity() {
         } else {
             startService(intent)
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try { unregisterReceiver(bluetoothStateReceiver) } catch (_: Exception) {}
     }
 }

@@ -69,7 +69,7 @@ class NotificationHelper(private val context: Context) {
         else "Listening for connections"
 
         return NotificationCompat.Builder(context, SERVICE_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
             .setContentTitle("BluetoothChat")
             .setContentText(text)
             .setOngoing(true)
@@ -95,7 +95,7 @@ class NotificationHelper(private val context: Context) {
         val notifId = MESSAGE_NOTIFICATION_BASE_ID + (deviceAddress.hashCode() and 0x7FFFFFFF) % 1000
 
         val notification = NotificationCompat.Builder(context, MESSAGE_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(android.R.drawable.stat_notify_chat)
             .setContentTitle(deviceName)
             .setContentText(messageText)
             .setAutoCancel(true)

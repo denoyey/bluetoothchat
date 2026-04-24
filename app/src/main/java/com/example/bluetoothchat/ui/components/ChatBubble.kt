@@ -3,16 +3,24 @@ package com.example.bluetoothchat.ui.components
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import android.content.Intent
 import com.example.bluetoothchat.data.model.ChatMessage
 import com.example.bluetoothchat.ui.theme.*
 import java.text.SimpleDateFormat
@@ -23,6 +31,7 @@ import java.util.Locale
  * A stylish chat bubble composable that renders sent and received messages
  * with distinct visual styles, rounded corners, and timestamps.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ChatBubble(
     message: ChatMessage,
@@ -30,6 +39,9 @@ fun ChatBubble(
     modifier: Modifier = Modifier
 ) {
     val isFromMe = message.isFromLocalUser
+    var showMenu by remember { mutableStateOf(false) }
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
 
     val bubbleColor = if (isFromMe) {
         if (isDarkTheme) ChatBubbleSent else ChatBubbleSentLight
@@ -89,6 +101,10 @@ fun ChatBubble(
                 )
                 .clip(bubbleShape)
                 .background(bubbleColor)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = { showMenu = true }
+                )
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
             Column {
@@ -103,6 +119,35 @@ fun ChatBubble(
                     style = MaterialTheme.typography.labelSmall,
                     color = timestampColor,
                     modifier = Modifier.align(Alignment.End)
+                )
+            }
+            
+            // Dropdown Menu overlay
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Copy Message") },
+                    leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = "Copy") },
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(message.content))
+                        showMenu = false
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Share") },
+                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = "Share") },
+                    onClick = {
+                        val sendIntent = Intent().apply {
+                            action = Intent.ACTION_SEND
+                            putExtra(Intent.EXTRA_TEXT, message.content)
+                            type = "text/plain"
+                        }
+                        val shareIntent = Intent.createChooser(sendIntent, "Share Message")
+                        context.startActivity(shareIntent)
+                        showMenu = false
+                    }
                 )
             }
         }
